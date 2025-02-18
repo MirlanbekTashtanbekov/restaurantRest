@@ -10,11 +10,13 @@ import peaksoft.restaurantrest.entities.Restaurant;
 import peaksoft.restaurantrest.entities.User;
 import peaksoft.restaurantrest.enums.RequestStatus;
 import peaksoft.restaurantrest.enums.Role;
+import peaksoft.restaurantrest.repo.RestaurantRepo;
 import peaksoft.restaurantrest.repo.UserRepo;
 import peaksoft.restaurantrest.service.UserService;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
 
     private final UserRepo userRepo;
+    private final RestaurantRepo restaurantRepo;
 
     public UserResponseDto createUser(UserRequestDto dto) {
         validateUser(dto);
@@ -94,7 +97,7 @@ public class UserServiceImpl implements UserService {
                 .dateOfBirth(dto.getDateOfBirth())
                 .experience(dto.getExperience())
                 .role(dto.getRole())
-                .status(RequestStatus.PENDING) // По умолчанию заявка на рассмотрении
+                .status(RequestStatus.PENDING) // По умолчанию заявка на рассмотрении будет показывать в БД
                 .build();
 
         userRepo.save(user);
@@ -102,7 +105,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Transactional
-    public UserResponseDto approveUser(Long userId, Long restaurantId) throws Throwable {
+    public UserResponseDto approveUser(Long userId, Long restaurantId) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Сотрудник не найден"));
 
@@ -110,9 +113,13 @@ public class UserServiceImpl implements UserService {
             throw new IllegalStateException("Эта заявка уже обработана");
         }
 
-        SimpleJpaRepository restaurantRepository = null;
-        Restaurant restaurant = (Restaurant) restaurantRepository.findById(restaurantId)
+        Restaurant restaurant = restaurantRepo.findById(restaurantId)
                 .orElseThrow(() -> new RuntimeException("Ресторан не найден"));
+
+        // Проверяем, есть ли сотрудники (чтобы не было null) если пусто
+        if (restaurant.getUsers() == null) {
+            restaurant.setUsers(new ArrayList<>());
+        }
 
         if (restaurant.getUsers().size() >= 15) {
             throw new IllegalStateException("Вакансий нет");
